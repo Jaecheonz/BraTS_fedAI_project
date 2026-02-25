@@ -1,2 +1,3 @@
-BraTS-GLI-02062-100,0.0,0.0,0.0,data\brats_outputs\BraTS-GLI-02062-100\segmentation.nii.gz,data\brats_raw\BraTS-GLI-02062-100\BraTS-GLI-02062-100-seg.nii,
-BraTS-GLI-02062-101,0.0,0.0,0.0,data\brats_outputs\BraTS-GLI-02062-101\segmentation.nii.gz,data\brats_raw\BraTS-GLI-02062-101\BraTS-GLI-02062-101-seg.nii,
+case,dice_ET,dice_TC,dice_WT,gt_ET_vox,gt_labels,gt_path,pred_ET_vox,pred_labels,pred_path
+BraTS-GLI-02062-100,0.3768513439385628,0.3763352506162695,0.708965632090593,2793,"[0, 2, 3, 4]",data/brats_preprocessed/BraTS-GLI-02062-100/seg_atlas.nii.gz,853,"[0, 1, 2, 3, 4]",data/brats_outputs/BraTS-GLI-02062-100/segmentation.nii.gz
+BraTS-GLI-02062-101,0.06983681347604843,0.06983681347604843,0.5508109281483549,4262,"[0, 2, 3, 4]",data/brats_preprocessed/BraTS-GLI-02062-101/seg_atlas.nii.gz,7136,"[0, 2, 3, 4]",data/brats_outputs/BraTS-GLI-02062-101/segmentation.nii.gz

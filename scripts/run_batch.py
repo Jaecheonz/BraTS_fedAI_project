@@ -93,34 +93,81 @@ def compute_brats_dice(pred_path: Path, gt_path: Path):
 # Pipeline steps per case
 # ----------------------------
 def preprocess_case(raw_case_dir: Path, pre_case_dir: Path):
+    """
+    Preprocess modalities to BraTS atlas space AND warp seg.nii into the same space.
+    Outputs:
+      pre_case_dir/t1c.nii.gz, t1n.nii.gz, t2f.nii.gz, t2w.nii.gz
+      pre_case_dir/seg_atlas.nii.gz   (GT warped to atlas space)
+      pre_case_dir/transforms/...     (saved transforms)
+    """
+    from brainles_preprocessing.modality import Modality, CenterModality
+    from brainles_preprocessing.preprocessor import AtlasCentricPreprocessor
+    from brainles_preprocessing.transform import Transform
+    from brainles_preprocessing.constants import Atlas
+
     pre_case_dir.mkdir(parents=True, exist_ok=True)
+    transforms_dir = pre_case_dir / "transforms"
+    transforms_dir.mkdir(parents=True, exist_ok=True)
 
-    # Resolve raw inputs by suffix (prefix can be anything)
-    t1n_in = find_by_suffix_nii(raw_case_dir, "t1n")
+    # ---- resolve raw inputs (your suffix matcher) ----
     t1c_in = find_by_suffix_nii(raw_case_dir, "t1c")
-    t2w_in = find_by_suffix_nii(raw_case_dir, "t2w")
+    t1n_in = find_by_suffix_nii(raw_case_dir, "t1n")
     t2f_in = find_by_suffix_nii(raw_case_dir, "t2f")
+    t2w_in = find_by_suffix_nii(raw_case_dir, "t2w")
+    seg_in = find_by_suffix_nii(raw_case_dir, "seg")
 
-    preprocess_coreg_sri24reg_bet(
-        t1_input=t1n_in,
-        t1c_input=t1c_in,
-        t2_input=t2w_in,
-        flair_input=t2f_in,
-        # write consistent names in preprocessed dir (.nii only)
-        t1_output=pre_case_dir / "t1n.nii",
-        t1c_output=pre_case_dir / "t1c.nii",
-        t2_output=pre_case_dir / "t2w.nii",
-        flair_output=pre_case_dir / "t2f.nii",
+    # ---- define output paths (atlas space) ----
+    t1c_out = pre_case_dir / "t1c.nii.gz"
+    t1n_out = pre_case_dir / "t1n.nii.gz"
+    t2f_out = pre_case_dir / "t2f.nii.gz"
+    t2w_out = pre_case_dir / "t2w.nii.gz"
+
+    # Center modality (t1c) + moving modalities
+    center = CenterModality(
+        modality_name="t1c",
+        input_path=t1c_in,
+        raw_bet_output_path=t1c_out,  # brain-extracted atlas-space output
+    )
+    moving = [
+        Modality(modality_name="t1n", input_path=t1n_in, raw_bet_output_path=t1n_out),
+        Modality(modality_name="t2f", input_path=t2f_in, raw_bet_output_path=t2f_out),
+        Modality(modality_name="t2w", input_path=t2w_in, raw_bet_output_path=t2w_out),
+    ]
+
+    # Run atlas-centric preprocessing (BraTS-like atlas space)
+    preprocessor = AtlasCentricPreprocessor(
+        center_modality=center,
+        moving_modalities=moving,
+        atlas_image_path=Atlas.BRATS_SRI24,  # BraTS-flavored SRI24 atlas :contentReference[oaicite:3]{index=3}
+    )
+
+    preprocessor.run(
+        save_dir_transformations=transforms_dir,  # <--- this is crucial :contentReference[oaicite:4]{index=4}
+    )
+
+    # Warp GT segmentation into atlas space using the saved transforms
+    seg_atlas_out = pre_case_dir / "seg_atlas.nii.gz"
+    log_file = pre_case_dir / "transform_seg.log"
+
+    tfm = Transform(transformations_dir=transforms_dir)
+    tfm.apply(
+        target_modality_name="t1c",
+        target_modality_img=t1c_out,        # target grid: atlas-space t1c
+        moving_image=seg_in,                # source: native-space GT seg
+        output_img_path=seg_atlas_out,
+        log_file_path=log_file,
+        interpolator="genericLabel",        # best for label maps :contentReference[oaicite:5]{index=5}
+        inverse=False,                      # native -> atlas
     )
 
 def infer_case(pre_case_dir: Path, out_pred_path: Path, segmenter):
     out_pred_path.parent.mkdir(parents=True, exist_ok=True)
 
     segmenter.infer_single(
-        t1c=str(pre_case_dir / "t1c.nii"),
-        t1n=str(pre_case_dir / "t1n.nii"),
-        t2f=str(pre_case_dir / "t2f.nii"),
-        t2w=str(pre_case_dir / "t2w.nii"),
+        t1c=str(pre_case_dir / "t1c.nii.gz"),
+        t1n=str(pre_case_dir / "t1n.nii.gz"),
+        t2f=str(pre_case_dir / "t2f.nii.gz"),
+        t2w=str(pre_case_dir / "t2w.nii.gz"),
         output_file=str(out_pred_path),
         backend=Backends.DOCKER,
     )
@@ -130,10 +177,10 @@ def infer_case(pre_case_dir: Path, out_pred_path: Path, segmenter):
 # Batch runner
 # ----------------------------
 def main():
-    raw_root = Path("data/raw_cases")
-    pre_root = Path("data/preprocessed_cases")
-    out_root = Path("outputs")
-    results_csv = Path("results/dice_summary.csv")
+    raw_root = Path("data/brats_raw")
+    pre_root = Path("data/brats_preprocessed")
+    out_root = Path("data/brats_outputs")
+    results_csv = Path("repro/baseline_metrics.csv")
     results_csv.parent.mkdir(parents=True, exist_ok=True)
 
     # init segmenter once (reused for all cases)
@@ -154,8 +201,7 @@ def main():
             pre_case_dir = pre_root / case_id
             pred_path = out_root / case_id / "segmentation.nii.gz"
 
-            # Resolve GT by suffix too (prefix can be anything)
-            gt_path = find_by_suffix_nii(case_dir, "seg")
+            gt_path = pre_case_dir / "seg_atlas.nii.gz"
 
             # 1) preprocess
             print("Preprocessing...")
