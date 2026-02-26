@@ -5,7 +5,6 @@ from brats.constants import AdultGliomaPreAndPostTreatmentAlgorithms
 from brats.constants import Backends
 
 def main():
-    # TODO: point these to your preprocessed files
     case_dir = Path("data/preprocessed_case")
 
     t1c = case_dir / "t1c.nii.gz"

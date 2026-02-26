@@ -2,6 +2,7 @@ from pathlib import Path
 import csv
 import numpy as np
 import nibabel as nib
+import argparse
 
 from brats.preprocessing import preprocess_coreg_sri24reg_bet
 from brats import AdultGliomaPreAndPostTreatmentSegmenter
@@ -18,6 +19,22 @@ SUFFIXES_NII = {
     "t2w": "t2w.nii",
     "seg": "seg.nii",
 }
+
+def _all_exist(paths):
+    return all(p.exists() for p in paths)
+
+def should_skip_preprocess(pre_case_dir: Path) -> bool:
+    needed = [
+        pre_case_dir / "t1c.nii.gz",
+        pre_case_dir / "t1n.nii.gz",
+        pre_case_dir / "t2f.nii.gz",
+        pre_case_dir / "t2w.nii.gz",
+        pre_case_dir / "seg_atlas.nii.gz",
+    ]
+    return _all_exist(needed)
+
+def should_skip_infer(pred_path: Path) -> bool:
+    return pred_path.exists()
 
 def _pick_best(candidates):
     """
@@ -39,10 +56,6 @@ def find_by_suffix_nii(case_dir: Path, key: str) -> Path:
 
     if not candidates:
         raise FileNotFoundError(f"No file found for '{key}' in {case_dir} ending with '{suffix}'")
-
-    # If you want to fail on duplicates instead of guessing, uncomment:
-    # if len(candidates) > 1:
-    #     raise RuntimeError(f"Multiple candidates for {key} in {case_dir}: {[c.name for c in candidates]}")
 
     return _pick_best(candidates)
 
@@ -92,7 +105,7 @@ def compute_brats_dice(pred_path: Path, gt_path: Path):
 # ----------------------------
 # Pipeline steps per case
 # ----------------------------
-def preprocess_case(raw_case_dir: Path, pre_case_dir: Path):
+def preprocess_case(raw_case_dir: Path, pre_case_dir: Path, force: bool = False):
     """
     Preprocess modalities to BraTS atlas space AND warp seg.nii into the same space.
     Outputs:
@@ -106,10 +119,14 @@ def preprocess_case(raw_case_dir: Path, pre_case_dir: Path):
     from brainles_preprocessing.constants import Atlas
 
     pre_case_dir.mkdir(parents=True, exist_ok=True)
+    if (not force) and should_skip_preprocess(pre_case_dir):
+        print("Preprocessing... (cached, skipping)")
+        return
+    
     transforms_dir = pre_case_dir / "transforms"
     transforms_dir.mkdir(parents=True, exist_ok=True)
 
-    # ---- resolve raw inputs (your suffix matcher) ----
+    # ---- resolve raw inputs  ----
     t1c_in = find_by_suffix_nii(raw_case_dir, "t1c")
     t1n_in = find_by_suffix_nii(raw_case_dir, "t1n")
     t2f_in = find_by_suffix_nii(raw_case_dir, "t2f")
@@ -160,8 +177,12 @@ def preprocess_case(raw_case_dir: Path, pre_case_dir: Path):
         inverse=False,                      # native -> atlas
     )
 
-def infer_case(pre_case_dir: Path, out_pred_path: Path, segmenter):
+def infer_case(pre_case_dir: Path, out_pred_path: Path, segmenter, force: bool = False):
     out_pred_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if (not force) and should_skip_infer(out_pred_path):
+        print("Inference... (cached, skipping)")
+        return
 
     segmenter.infer_single(
         t1c=str(pre_case_dir / "t1c.nii.gz"),
@@ -182,6 +203,9 @@ def main():
     out_root = Path("data/brats_outputs")
     results_csv = Path("repro/baseline_metrics.csv")
     results_csv.parent.mkdir(parents=True, exist_ok=True)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--force", action="store_true", help="Recompute preprocessing and inference even if outputs exist")
+    args = parser.parse_args()
 
     # init segmenter once (reused for all cases)
     segmenter = AdultGliomaPreAndPostTreatmentSegmenter(
@@ -205,11 +229,11 @@ def main():
 
             # 1) preprocess
             print("Preprocessing...")
-            preprocess_case(case_dir, pre_case_dir)
+            preprocess_case(case_dir, pre_case_dir, force=False)
 
             # 2) inference
             print("Inference...")
-            infer_case(pre_case_dir, pred_path, segmenter)
+            infer_case(pre_case_dir, pred_path, segmenter, force=False)
 
             # 3) eval
             print("Evaluating Dice...")

@@ -1,3 +1,6 @@
 case,dice_ET,dice_TC,dice_WT,gt_ET_vox,gt_labels,gt_path,pred_ET_vox,pred_labels,pred_path
-BraTS-GLI-02062-100,0.3768513439385628,0.3763352506162695,0.708965632090593,2793,"[0, 2, 3, 4]",data/brats_preprocessed/BraTS-GLI-02062-100/seg_atlas.nii.gz,853,"[0, 1, 2, 3, 4]",data/brats_outputs/BraTS-GLI-02062-100/segmentation.nii.gz
-BraTS-GLI-02062-101,0.06983681347604843,0.06983681347604843,0.5508109281483549,4262,"[0, 2, 3, 4]",data/brats_preprocessed/BraTS-GLI-02062-101/seg_atlas.nii.gz,7136,"[0, 2, 3, 4]",data/brats_outputs/BraTS-GLI-02062-101/segmentation.nii.gz
+BraTS-GLI-02062-100,0.38465783664459163,0.3840220385674931,0.7119513110175497,2775,"[0, 2, 3, 4]",data/brats_preprocessed/BraTS-GLI-02062-100/seg_atlas.nii.gz,849,"[0, 1, 2, 3, 4]",data/brats_outputs/BraTS-GLI-02062-100/segmentation.nii.gz
+BraTS-GLI-02062-101,0.08509837145815682,0.08509837145815682,0.5670203110819015,4216,"[0, 2, 3, 4]",data/brats_preprocessed/BraTS-GLI-02062-101/seg_atlas.nii.gz,6407,"[0, 2, 3, 4]",data/brats_outputs/BraTS-GLI-02062-101/segmentation.nii.gz
+BraTS-GLI-02062-102,0.2279189000233046,0.2279189000233046,0.7699976526145731,3693,"[0, 2, 3, 4]",data/brats_preprocessed/BraTS-GLI-02062-102/seg_atlas.nii.gz,598,"[0, 2, 3, 4]",data/brats_outputs/BraTS-GLI-02062-102/segmentation.nii.gz
+BraTS-GLI-02062-103,0.2635067282586865,0.2635067282586865,0.710267573252458,4156,"[0, 2, 3, 4]",data/brats_preprocessed/BraTS-GLI-02062-103/seg_atlas.nii.gz,823,"[0, 2, 3, 4]",data/brats_outputs/BraTS-GLI-02062-103/segmentation.nii.gz
+BraTS-GLI-02062-104,0.08571428571428572,0.08569704284852142,0.5877756070332124,3643,"[0, 2, 3, 4]",data/brats_preprocessed/BraTS-GLI-02062-104/seg_atlas.nii.gz,6297,"[0, 1, 2, 3, 4]",data/brats_outputs/BraTS-GLI-02062-104/segmentation.nii.gz
