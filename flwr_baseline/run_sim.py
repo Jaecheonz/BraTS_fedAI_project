@@ -19,8 +19,8 @@ def client_fn(cid: str, pre_root: Path, num_clients: int, device: torch.device):
     train_cases = my_cases[:split]
     val_cases = my_cases[split:] if len(my_cases) > 1 else my_cases
 
-    train_ds = BratsPatchDataset(train_cases, patches_per_case=4, crop=(96, 96, 96), seed=42 + cid_int)
-    val_ds = BratsPatchDataset(val_cases, patches_per_case=2, crop=(96, 96, 96), seed=999 + cid_int)
+    train_ds = BratsPatchDataset(train_cases, patches_per_case=4, crop=(64, 64, 64), seed=42 + cid_int)
+    val_ds = BratsPatchDataset(val_cases, patches_per_case=2, crop=(64, 64, 64), seed=999 + cid_int)
 
     trainloader = DataLoader(train_ds, batch_size=1, shuffle=True, num_workers=0)
     valloader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=0)
@@ -50,7 +50,7 @@ def main():
         num_clients=num_clients,
         config=fl.server.ServerConfig(num_rounds=num_rounds),
         strategy=strategy,
-        client_resources={"num_cpus": 1, "num_gpus": 0},
+        client_resources={"num_cpus": 4, "num_gpus": 0},
     )
     # ---- Save aggregated per-round results to CSV ----
     out_dir = Path("repro/flwr")
