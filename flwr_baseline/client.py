@@ -1,3 +1,4 @@
+# client.py
 from __future__ import annotations
 
 from typing import List, Tuple, Dict, Any
@@ -10,6 +11,8 @@ import flwr as fl
 
 from .model import UNet3D
 from .metrics import brats_dice_regions
+
+from monai.inferers import sliding_window_inference
 
 
 def get_parameters(net: torch.nn.Module) -> List[np.ndarray]:
@@ -24,25 +27,45 @@ def set_parameters(net: torch.nn.Module, parameters: List[np.ndarray]) -> None:
 
 
 @torch.no_grad()
-def evaluate_full_volume(net: torch.nn.Module, loader: DataLoader, device: torch.device) -> Dict[str, float]:
+def evaluate_cases_sliding_window(
+    net: torch.nn.Module,
+    loader: DataLoader,
+    device: torch.device,
+    roi_size: Tuple[int, int, int] = (96, 96, 96),
+    sw_batch_size: int = 1,
+) -> Dict[str, float]:
     """
-    For simplicity, we evaluate on the same patch loader by aggregating predictions over patches.
-    This is a baseline; later you can implement sliding-window full-volume inference.
+    True case-level evaluation using sliding-window inference over full volumes.
+    Expects loader batches of: x (B,C,D,H,W), y (B,D,H,W), case_id (B,)
     """
     net.eval()
-    all_pred = []
-    all_gt = []
-    for xb, yb in loader:
-        xb = xb.to(device)
-        logits = net(xb)  # (B, C, D, H, W)
-        pred = torch.argmax(logits, dim=1).cpu().numpy()  # (B, D, H, W)
-        gt = yb.numpy()
-        all_pred.append(pred.reshape(-1))
-        all_gt.append(gt.reshape(-1))
+    dice_wt, dice_tc, dice_et = [], [], []
 
-    pred_flat = np.concatenate(all_pred, axis=0)
-    gt_flat = np.concatenate(all_gt, axis=0)
-    return brats_dice_regions(pred_flat, gt_flat)
+    for xb, yb, _case_id in loader:
+        xb = xb.to(device)  # (B,C,D,H,W)
+        y = yb.cpu().numpy()  # (B,D,H,W)
+
+        # Sliding window returns logits: (B,C,D,H,W)
+        logits = sliding_window_inference(xb, roi_size=roi_size, sw_batch_size=sw_batch_size, predictor=net)
+        pred = torch.argmax(logits, dim=1).cpu().numpy()  # (B,D,H,W)
+
+        # Compute dice per case (B should be 1, but handle general B)
+        for i in range(pred.shape[0]):
+            m = brats_dice_regions(pred[i].reshape(-1), y[i].reshape(-1))
+            dice_wt.append(m["dice_WT"])
+            dice_tc.append(m["dice_TC"])
+            dice_et.append(m["dice_ET"])
+
+    # Average, ignoring NaNs (your dice_bool uses NaN for empty-empty)
+    def nanmean(xs):
+        xs = np.array(xs, dtype=np.float32)
+        return float(np.nanmean(xs)) if np.any(~np.isnan(xs)) else float("nan")
+
+    return {
+        "dice_WT": nanmean(dice_wt),
+        "dice_TC": nanmean(dice_tc),
+        "dice_ET": nanmean(dice_et),
+    }
 
 
 class BratsClient(fl.client.NumPyClient):
@@ -51,6 +74,7 @@ class BratsClient(fl.client.NumPyClient):
         cid: int,
         trainloader: DataLoader,
         valloader: DataLoader,
+        case_valloader: DataLoader,
         device: torch.device,
         lr: float = 1e-3,
         local_epochs: int = 1,
@@ -58,10 +82,11 @@ class BratsClient(fl.client.NumPyClient):
         self.cid = cid
         self.trainloader = trainloader
         self.valloader = valloader
+        self.case_valloader = case_valloader
         self.device = device
         self.local_epochs = local_epochs
 
-        self.net = UNet3D(in_channels=4, num_classes=5, base=16).to(self.device)
+        self.net = UNet3D(in_channels=4, num_classes=4, base=16).to(self.device)
         self.optim = torch.optim.Adam(self.net.parameters(), lr=lr)
         self.criterion = torch.nn.CrossEntropyLoss()
 
@@ -106,7 +131,11 @@ class BratsClient(fl.client.NumPyClient):
         loss_avg = ce / max(1, n_batches)
 
         # Dice metrics (patch-based baseline)
-        metrics = evaluate_full_volume(self.net, self.valloader, self.device)
+        rnd = int(config.get("rnd", 0))
+        if rnd % 2 == 1:  # only odd rounds
+            metrics = evaluate_cases_sliding_window(self.net, self.case_valloader, self.device, roi_size=(64, 64, 64), sw_batch_size=1)
+        else:
+            metrics = {"dice_WT": float("nan"), "dice_TC": float("nan"), "dice_ET": float("nan")}
 
         num_examples = len(self.valloader.dataset)
         return loss_avg, num_examples, metrics

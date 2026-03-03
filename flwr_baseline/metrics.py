@@ -1,3 +1,4 @@
+# metrics.py
 import numpy as np
 
 def dice_bool(a: np.ndarray, b: np.ndarray) -> float:
@@ -11,11 +12,13 @@ def brats_dice_regions(pred: np.ndarray, gt: np.ndarray) -> dict:
     wt_pred = pred > 0
     wt_gt   = gt > 0
 
-    tc_pred = np.logical_or(pred == 3, pred == 4)
-    tc_gt   = np.logical_or(gt == 3, gt == 4)
+    # TC = NCR/NET (1) + ET (3)
+    tc_pred = np.logical_or(pred == 1, pred == 3)
+    tc_gt   = np.logical_or(gt == 1, gt == 3)
 
-    et_pred = pred == 4
-    et_gt   = gt == 4
+    # ET = 3
+    et_pred = pred == 3
+    et_gt   = gt == 3
 
     return {
         "dice_WT": dice_bool(wt_pred, wt_gt),

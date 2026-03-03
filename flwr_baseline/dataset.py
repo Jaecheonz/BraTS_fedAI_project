@@ -1,3 +1,4 @@
+# dataset.py
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -90,7 +91,7 @@ def _tumor_biased_crop_3d(
 
     # pick a tumor voxel with prob tumor_prob
     if rng.random() < tumor_prob:
-        tumor = np.argwhere(y > 0)  # WT-biased (stable). You can switch to y==4 for ET-biased.
+        tumor = np.argwhere(y > 0)  # WT-biased (stable). Can switch to y==3 for ET-biased (after 4->3 remap).
         if tumor.size > 0:
             cz, cy, cx = tumor[rng.integers(0, len(tumor))]
             sd = int(np.clip(cz - cd // 2, 0, max(0, D - cd)))
@@ -140,6 +141,14 @@ class BratsPatchDataset(Dataset):
             t2w = np.transpose(t2w, (2, 1, 0))
             seg = np.transpose(seg, (2, 1, 0))
 
+            # 4 (Enhancing Tumor) becomes 3
+            seg = np.where(seg == 4, 3, seg).astype(np.int16)
+
+            # Optional but strongly recommended sanity check (fail fast)
+            u = np.unique(seg)
+            if not set(u).issubset({0, 1, 2, 3}):
+                raise ValueError(f"Unexpected labels after remap for {c.case_id}: {u}")
+
             x = np.stack([t1c, t1n, t2f, t2w], axis=0)  # (C, D, H, W)
             x = _zscore_per_channel(x)
 
@@ -165,3 +174,42 @@ class BratsPatchDataset(Dataset):
         x_t = torch.from_numpy(x_crop)  # (C, D, H, W)
         y_t = torch.from_numpy(y_crop).long()  # (D, H, W)
         return x_t, y_t
+    
+    
+# full-volume dataset for evaluation
+class BratsCaseDataset(Dataset):
+    """Returns full volumes (x: (C,D,H,W), y: (D,H,W)) for case-level evaluation."""
+    def __init__(self, cases: List[CasePaths]):
+        self.cases = cases
+
+    def __len__(self) -> int:
+        return len(self.cases)
+
+    def __getitem__(self, idx: int):
+        c = self.cases[idx]
+
+        t1c = _load_nii(c.t1c)
+        t1n = _load_nii(c.t1n)
+        t2f = _load_nii(c.t2f)
+        t2w = _load_nii(c.t2w)
+        seg = nib.load(str(c.seg)).get_fdata().astype(np.int16)
+
+        # (X,Y,Z) -> (Z,Y,X) => (D,H,W)
+        t1c = np.transpose(t1c, (2, 1, 0))
+        t1n = np.transpose(t1n, (2, 1, 0))
+        t2f = np.transpose(t2f, (2, 1, 0))
+        t2w = np.transpose(t2w, (2, 1, 0))
+        seg = np.transpose(seg, (2, 1, 0))
+
+        # remap 4->3
+        seg = np.where(seg == 4, 3, seg).astype(np.int16)
+        u = np.unique(seg)
+        if not set(u).issubset({0, 1, 2, 3}):
+            raise ValueError(f"Unexpected labels after remap for {c.case_id}: {u}")
+
+        x = np.stack([t1c, t1n, t2f, t2w], axis=0).astype(np.float32)
+        x = _zscore_per_channel(x)
+
+        x_t = torch.from_numpy(x)          # (C,D,H,W)
+        y_t = torch.from_numpy(seg).long() # (D,H,W)
+        return x_t, y_t, c.case_id

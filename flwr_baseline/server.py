@@ -1,3 +1,4 @@
+# server.py
 from __future__ import annotations
 
 import flwr as fl
@@ -23,6 +24,7 @@ def make_strategy(num_clients: int, local_epochs: int = 1):
         min_fit_clients=num_clients,
         min_evaluate_clients=num_clients,
         min_available_clients=num_clients,
-        on_fit_config_fn=lambda rnd: {"local_epochs": local_epochs},
+        on_fit_config_fn=lambda rnd: {"local_epochs": local_epochs, "rnd": rnd},
+        on_evaluate_config_fn=lambda rnd: {"rnd": rnd},
         evaluate_metrics_aggregation_fn=weighted_average,  # <-- key line
     )
