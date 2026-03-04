@@ -9,10 +9,10 @@ class DoubleConv(nn.Module):
         super().__init__()
         self.net = nn.Sequential(
             nn.Conv3d(in_ch, out_ch, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm3d(out_ch),
+            nn.InstanceNorm3d(out_ch, affine=True),
             nn.ReLU(inplace=True),
             nn.Conv3d(out_ch, out_ch, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm3d(out_ch),
+            nn.InstanceNorm3d(out_ch, affine=True),
             nn.ReLU(inplace=True),
         )
 
@@ -22,7 +22,7 @@ class DoubleConv(nn.Module):
 
 class UNet3D(nn.Module):
     """Small 3D U-Net for quick FL baseline."""
-    def __init__(self, in_channels: int = 4, num_classes: int = 5, base: int = 16):
+    def __init__(self, in_channels: int = 4, num_classes: int = 4, base: int = 16):
         super().__init__()
         self.enc1 = DoubleConv(in_channels, base)
         self.pool1 = nn.MaxPool3d(2)

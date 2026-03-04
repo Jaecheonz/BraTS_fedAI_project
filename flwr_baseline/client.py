@@ -118,7 +118,7 @@ class BratsClient(fl.client.NumPyClient):
 
         # Compute CE loss on val patches
         self.net.eval()
-        ce = 0.0
+        loss_sum = 0.0
         n_batches = 0
         with torch.no_grad():
             for xb, yb in self.valloader:
@@ -126,16 +126,17 @@ class BratsClient(fl.client.NumPyClient):
                 yb = yb.to(self.device)
                 logits = self.net(xb)
                 loss = self.criterion(logits, yb)
-                ce += float(loss.item())
+                loss_sum += float(loss.item())
                 n_batches += 1
-        loss_avg = ce / max(1, n_batches)
+        loss_avg = loss_sum / max(1, n_batches)
 
         # Dice metrics (patch-based baseline)
         rnd = int(config.get("rnd", 0))
-        if rnd % 2 == 1:  # only odd rounds
+        if rnd % 2 == 1:
             metrics = evaluate_cases_sliding_window(self.net, self.case_valloader, self.device, roi_size=(64, 64, 64), sw_batch_size=1)
+            num_examples = len(self.case_valloader.dataset)   # <-- use cases
         else:
             metrics = {"dice_WT": float("nan"), "dice_TC": float("nan"), "dice_ET": float("nan")}
+            num_examples = len(self.valloader.dataset)        # patches (loss still patch-based)
 
-        num_examples = len(self.valloader.dataset)
         return loss_avg, num_examples, metrics

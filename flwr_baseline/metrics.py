@@ -12,9 +12,9 @@ def brats_dice_regions(pred: np.ndarray, gt: np.ndarray) -> dict:
     wt_pred = pred > 0
     wt_gt   = gt > 0
 
-    # TC = NCR/NET (1) + ET (3)
-    tc_pred = np.logical_or(pred == 1, pred == 3)
-    tc_gt   = np.logical_or(gt == 1, gt == 3)
+    # TC = NCR/NET (2) + ET (3)
+    tc_pred = np.logical_or(pred == 2, pred == 3)
+    tc_gt   = np.logical_or(gt == 2, gt == 3)
 
     # ET = 3
     et_pred = pred == 3

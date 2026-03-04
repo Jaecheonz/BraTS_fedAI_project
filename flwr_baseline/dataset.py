@@ -91,7 +91,7 @@ def _tumor_biased_crop_3d(
 
     # pick a tumor voxel with prob tumor_prob
     if rng.random() < tumor_prob:
-        tumor = np.argwhere(y > 0)  # WT-biased (stable). Can switch to y==3 for ET-biased (after 4->3 remap).
+        tumor = np.argwhere(y > 0)  # WT-biased. Can switch to y==3 for ET-biased (after remap {0,2,3,4}->{0,1,2,3}).
         if tumor.size > 0:
             cz, cy, cx = tumor[rng.integers(0, len(tumor))]
             sd = int(np.clip(cz - cd // 2, 0, max(0, D - cd)))
@@ -109,7 +109,7 @@ def _tumor_biased_crop_3d(
 class BratsPatchDataset(Dataset):
     """
     Returns random 3D patches from each case.
-    Labels are kept as integers (0..4 possible).
+    Labels are remapped to contiguous integers (0..3).
     """
     def __init__(
         self,
@@ -141,10 +141,15 @@ class BratsPatchDataset(Dataset):
             t2w = np.transpose(t2w, (2, 1, 0))
             seg = np.transpose(seg, (2, 1, 0))
 
-            # 4 (Enhancing Tumor) becomes 3
-            seg = np.where(seg == 4, 3, seg).astype(np.int16)
+            # Remap {0,2,3,4} -> {0,1,2,3} (contiguous) without merging classes
+            seg = seg.astype(np.int16)
+            seg_remap = np.zeros_like(seg, dtype=np.int16)
+            seg_remap[seg == 2] = 1
+            seg_remap[seg == 3] = 2
+            seg_remap[seg == 4] = 3
+            seg = seg_remap
 
-            # Optional but strongly recommended sanity check (fail fast)
+            # Sanity check (fail fast)
             u = np.unique(seg)
             if not set(u).issubset({0, 1, 2, 3}):
                 raise ValueError(f"Unexpected labels after remap for {c.case_id}: {u}")
@@ -201,8 +206,12 @@ class BratsCaseDataset(Dataset):
         t2w = np.transpose(t2w, (2, 1, 0))
         seg = np.transpose(seg, (2, 1, 0))
 
-        # remap 4->3
-        seg = np.where(seg == 4, 3, seg).astype(np.int16)
+        seg = seg.astype(np.int16)
+        seg_remap = np.zeros_like(seg, dtype=np.int16)
+        seg_remap[seg == 2] = 1
+        seg_remap[seg == 3] = 2
+        seg_remap[seg == 4] = 3
+        seg = seg_remap
         u = np.unique(seg)
         if not set(u).issubset({0, 1, 2, 3}):
             raise ValueError(f"Unexpected labels after remap for {c.case_id}: {u}")
