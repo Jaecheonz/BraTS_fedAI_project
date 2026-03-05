@@ -36,6 +36,25 @@ def list_cases(pre_root: Path) -> List[CasePaths]:
     return cases
 
 
+def list_cases_raw(raw_root: Path) -> List[CasePaths]:
+    cases: List[CasePaths] = []
+    for case_dir in sorted([p for p in raw_root.iterdir() if p.is_dir()]):
+        case_id = case_dir.name
+
+        seg = case_dir / f"{case_id}-seg.nii"
+        t1c = case_dir / f"{case_id}-t1c.nii"
+        t1n = case_dir / f"{case_id}-t1n.nii"
+        t2f = case_dir / f"{case_id}-t2f.nii"
+        t2w = case_dir / f"{case_id}-t2w.nii"
+
+        if all(p.exists() for p in [seg, t1c, t1n, t2f, t2w]):
+            cases.append(CasePaths(case_id, t1c, t1n, t2f, t2w, seg))
+
+    if not cases:
+        raise FileNotFoundError(f"No raw cases found under {raw_root}")
+    return cases
+
+
 def partition_cases(cases: List[CasePaths], num_clients: int, cid: int) -> List[CasePaths]:
     # Deterministic round-robin split
     return [c for i, c in enumerate(cases) if (i % num_clients) == cid]

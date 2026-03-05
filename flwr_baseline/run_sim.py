@@ -6,14 +6,16 @@ import torch
 import csv
 from torch.utils.data import DataLoader
 import flwr as fl
-from .dataset import list_cases, partition_cases, BratsPatchDataset, BratsCaseDataset
+from .dataset import list_cases, list_cases_raw, partition_cases, BratsPatchDataset, BratsCaseDataset
 from .client import BratsClient
 from .server import make_strategy
 from datetime import datetime
+import logging
+logging.getLogger("flwr").propagate = False
 
 def client_fn(cid: str, pre_root: Path, num_clients: int, device: torch.device):
     cid_int = int(cid)
-    cases = list_cases(pre_root)
+    cases = list_cases_raw(pre_root)
     my_cases = partition_cases(cases, num_clients=num_clients, cid=cid_int)
 
     if cid_int == 0 and len(my_cases) > 0:
@@ -54,9 +56,9 @@ def client_fn(cid: str, pre_root: Path, num_clients: int, device: torch.device):
 
 
 def main():
-    pre_root = Path("data/brats_preprocessed")
+    pre_root = Path("data/brats_raw")
     num_clients = 2
-    num_rounds = 20
+    num_rounds = 5
     local_epochs = 2
 
     device = torch.device("cpu")
