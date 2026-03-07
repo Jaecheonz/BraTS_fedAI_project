@@ -58,7 +58,7 @@ def client_fn(cid: str, pre_root: Path, num_clients: int, device: torch.device):
 def main():
     pre_root = Path("data/brats_raw")
     num_clients = 2
-    num_rounds = 5
+    num_rounds = 20
     local_epochs = 2
 
     device = torch.device("cpu")

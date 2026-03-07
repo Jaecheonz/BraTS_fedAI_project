@@ -51,6 +51,14 @@ def evaluate_cases_sliding_window(
 
         # Compute dice per case (B should be 1, but handle general B)
         for i in range(pred.shape[0]):
+            # --- DEBUG: ET presence (class 3 after remap) ---
+            gt_et = int((y[i] == 3).sum())
+            pr_et = int((pred[i] == 3).sum())
+            gt_wt = int((y[i] > 0).sum())
+            pr_wt = int((pred[i] > 0).sum())
+            case_id = _case_id[i] if isinstance(_case_id, (list, tuple, np.ndarray)) else _case_id
+            print(f"[ET dbg] case={case_id} gt_ET={gt_et} pred_ET={pr_et} gt_WTvox={gt_wt} pred_WTvox={pr_wt}")
+
             m = brats_dice_regions(pred[i].reshape(-1), y[i].reshape(-1))
             dice_wt.append(m["dice_WT"])
             dice_tc.append(m["dice_TC"])
@@ -88,7 +96,8 @@ class BratsClient(fl.client.NumPyClient):
 
         self.net = UNet3D(in_channels=4, num_classes=4, base=16).to(self.device)
         self.optim = torch.optim.Adam(self.net.parameters(), lr=lr)
-        self.criterion = torch.nn.CrossEntropyLoss()
+        w = torch.tensor([1.0, 2.0, 2.0, 6.0], device=self.device)  # [bg, class1, class2, ET]
+        self.criterion = torch.nn.CrossEntropyLoss(weight=w)
 
     def get_parameters(self, config: Dict[str, Any]):
         return get_parameters(self.net)

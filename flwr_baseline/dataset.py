@@ -103,10 +103,23 @@ def _tumor_biased_crop_3d(
     crop: Tuple[int, int, int],
     rng: np.random.Generator,
     tumor_prob: float = 0.7,
+    et_prob: float = 0.3,
 ) -> Tuple[np.ndarray, np.ndarray]:
     # x: (C, D, H, W), y: (D, H, W)
     _, D, H, W = x.shape
     cd, ch, cw = crop
+    # --- NEW: sometimes center on ET voxels (label 3 after remap) ---
+    if rng.random() < et_prob:
+        et = np.argwhere(y == 3)
+        if et.size > 0:
+            cz, cy, cx = et[rng.integers(0, len(et))]
+            sd = int(np.clip(cz - cd // 2, 0, max(0, D - cd)))
+            sh = int(np.clip(cy - ch // 2, 0, max(0, H - ch)))
+            sw = int(np.clip(cx - cw // 2, 0, max(0, W - cw)))
+            return (
+                x[:, sd:sd+cd, sh:sh+ch, sw:sw+cw],
+                y[sd:sd+cd, sh:sh+ch, sw:sw+cw],
+            )
 
     # pick a tumor voxel with prob tumor_prob
     if rng.random() < tumor_prob:
@@ -192,7 +205,7 @@ class BratsPatchDataset(Dataset):
         x = self._x[case_idx]
         y = self._y[case_idx]
 
-        x_crop, y_crop = _tumor_biased_crop_3d(x, y, self.crop, rng, tumor_prob=0.7)
+        x_crop, y_crop = _tumor_biased_crop_3d(x, y, self.crop, rng, tumor_prob=0.7, et_prob=0.3)
 
         # torch tensors
         x_t = torch.from_numpy(x_crop)  # (C, D, H, W)
